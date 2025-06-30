@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Download, Pen, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { FileText, Plus, Download, Pen, CheckCircle, Clock, AlertCircle } from '@/components/ui/Icon';
 import { Contract, ContractStatus } from '@/types';
 import { contractService } from '@/services/contracts';
 import { useAuth } from '@/contexts/AuthContext';
@@ -69,11 +69,16 @@ export default function ContractsPage() {
     setSigningContract(contract);
   };
 
-  const handleSignContract = async (signatureData: { signature: string; signedAt: string }) => {
+  const handleSignContract = async (signature: string) => {
     if (!signingContract) return;
 
     try {
       setSigning(signingContract.id);
+
+      const signatureData = {
+        signature,
+        signedAt: new Date().toISOString()
+      };
 
       const result = await contractService.signContract(signingContract.id, signatureData);
       
@@ -288,8 +293,8 @@ export default function ContractsPage() {
       <SignatureModal
         isOpen={!!signingContract}
         onClose={() => setSigningContract(null)}
-        onSign={handleSignContract}
-        contractNumber={signingContract?.number?.toString()}
+        onSave={handleSignContract}
+        title={`Sign Contract #${signingContract?.number || ''}`}
       />
     </div>
   );

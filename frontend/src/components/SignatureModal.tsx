@@ -2,133 +2,102 @@
 
 import React, { useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { X, RotateCcw, Check } from 'lucide-react';
+import { X, RotateCcw, Check } from '@/components/ui/Icon';
 
 interface SignatureModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSign: (signatureData: { signature: string; signedAt: string }) => void;
-  contractNumber?: string;
+  onSave: (signature: string) => void;
+  title?: string;
 }
 
-export default function SignatureModal({ isOpen, onClose, onSign, contractNumber }: SignatureModalProps) {
+export default function SignatureModal({
+  isOpen,
+  onClose,
+  onSave,
+  title = 'Add Your Signature'
+}: SignatureModalProps) {
   const sigCanvas = useRef<SignatureCanvas>(null);
   const [isEmpty, setIsEmpty] = useState(true);
 
-  const handleClear = () => {
+  if (!isOpen) return null;
+
+  const clearSignature = () => {
     sigCanvas.current?.clear();
     setIsEmpty(true);
   };
 
-  const handleSign = () => {
+  const saveSignature = () => {
     if (sigCanvas.current && !isEmpty) {
-      const signatureData = {
-        signature: sigCanvas.current.toDataURL('image/png'),
-        signedAt: new Date().toISOString()
-      };
-      onSign(signatureData);
-      handleClear();
+      const signature = sigCanvas.current.getTrimmedCanvas().toDataURL();
+      onSave(signature);
       onClose();
     }
   };
 
-  const handleBegin = () => {
+  const handleBeginStroke = () => {
     setIsEmpty(false);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative transform overflow-hidden rounded-lg bg-white shadow-xl transition-all w-full max-w-2xl">
-          {/* Header */}
-          <div className="border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Sign Rental Agreement
-                </h3>
-                {contractNumber && (
-                  <p className="text-sm text-gray-600">
-                    Contract #{contractNumber}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={onClose}
-                className="rounded-md p-1 hover:bg-gray-100 transition-colors"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <p className="text-sm text-gray-600 mb-4">
+            Please draw your signature in the box below using your finger or mouse.
+          </p>
+
+          {/* Signature Canvas */}
+          <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-4">
+            <SignatureCanvas
+              ref={sigCanvas}
+              canvasProps={{
+                width: 400,
+                height: 200,
+                className: 'signature-canvas w-full h-full',
+                style: { touchAction: 'none' }
+              }}
+              onBegin={handleBeginStroke}
+              backgroundColor="rgb(249, 250, 251)"
+            />
           </div>
 
-          {/* Content */}
-          <div className="px-6 py-4">
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Please draw your signature in the box below using your mouse or finger.
-              </p>
-              <p className="text-xs text-gray-500">
-                By signing, you agree to the terms and conditions of the rental agreement.
-              </p>
-            </div>
+          {/* Instructions */}
+          <p className="text-xs text-gray-500 mb-6">
+            Your signature will be used to confirm your agreement to the terms and conditions.
+          </p>
 
-            {/* Signature Canvas */}
-            <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white">
-              <SignatureCanvas
-                ref={sigCanvas}
-                canvasProps={{
-                  className: 'signature-canvas',
-                  width: 608,
-                  height: 200,
-                }}
-                backgroundColor="white"
-                penColor="black"
-                onBegin={handleBegin}
-              />
-            </div>
-
-            {/* Instructions */}
-            <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-              <span>Draw your signature above</span>
-              <span className="text-primary-600 font-medium">
-                {isEmpty ? 'Waiting for signature...' : 'Signature captured'}
-              </span>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={handleClear}
-                disabled={isEmpty}
-                className="btn-outline btn-sm flex items-center gap-2"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Clear
-              </button>
-              <button
-                onClick={onClose}
-                className="btn-secondary btn-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSign}
-                disabled={isEmpty}
-                className="btn-primary btn-sm flex items-center gap-2"
-              >
-                <Check className="h-4 w-4" />
-                Sign Contract
-              </button>
-            </div>
+          {/* Action Buttons */}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={clearSignature}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+              disabled={isEmpty}
+            >
+              <RotateCcw size={16} />
+              Clear
+            </button>
+            <button
+              onClick={saveSignature}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isEmpty}
+            >
+              <Check size={16} />
+              Save Signature
+            </button>
           </div>
         </div>
       </div>

@@ -113,7 +113,7 @@ class CheckInService {
   }
 
   // Get document type display name
-  getDocumentTypeDisplayName(type: DocumentDetails['type']): string {
+  getDocumentTypeDisplayName(type: 'driving_license' | 'identity_document'): string {
     const typeMap = {
       driving_license: "Driver's License",
       identity_document: 'Identity Document',
