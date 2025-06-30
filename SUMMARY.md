@@ -346,10 +346,23 @@ The application is built with internationalization support:
 
 ---
 
-*Last Updated: January 2025*
+*Last Updated: July 2025*
 *Version: 1.1.0*
 
 ### Recent Updates
+
+#### WhipAround API Integration (v1.0.0-whiparound) - July 2025
+- **Full WhipAround API Integration**: Real-time vehicle inspection data
+  - Integrated WhipAround API v4 for vehicle inspection retrieval
+  - Automatic inspection search by booking number
+  - Support for inspection photos, signatures, and PDF reports
+  - Caching mechanism for improved performance (5-minute cache)
+  - Endpoints: `/api/inspections/:bookingId` and `/api/inspections/:bookingId/status`
+  - Successfully tested with real inspection data (booking #6004)
+  - Inspector and rider signatures displayed in the UI
+  - Vehicle condition photos (motorcycle, helmet, fuel tank)
+  - Kilometer readings and fuel level tracking
+  
 - **Signature Modal Implementation**: Added interactive signature pad for digital contract signing
   - Replaced text-based signature with canvas-based drawing
   - Support for mouse and touch input
