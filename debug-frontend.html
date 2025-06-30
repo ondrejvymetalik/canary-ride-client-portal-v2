@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend API Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 10px 0; padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; background: #f9f9f9; white-space: pre-wrap; }
+        .error { border-color: #dc3545; background: #f8d7da; }
+        .success { border-color: #28a745; background: #d4edda; }
+    </style>
+</head>
+<body>
+    <h1>Frontend API Debug Tool</h1>
+    <p>This tool helps debug the frontend-to-backend communication</p>
+    
+    <div>
+        <h3>Step 1: Test Login</h3>
+        <button onclick="testLogin()">Test Login (6004 / maria.ostos97@gmail.com)</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <div>
+        <h3>Step 2: Test Inspection Status</h3>
+        <button onclick="testInspectionStatus()">Test Inspection Status</button>
+        <div id="inspectionStatusResult" class="result"></div>
+    </div>
+
+    <div>
+        <h3>Step 3: Test Full Inspection</h3>
+        <button onclick="testFullInspection()">Test Full Inspection</button>
+        <div id="fullInspectionResult" class="result"></div>
+    </div>
+
+    <script>
+        let authToken = null;
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            resultDiv.textContent = 'Testing login...';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        bookingNumber: '6004',
+                        email: 'maria.ostos97@gmail.com'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    authToken = data.data.token;
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Login Success!\n\nUser: ${data.data.user.firstName} ${data.data.user.lastName}\nBooking: ${data.data.user.bookingNumber}\nToken: ${authToken.substring(0, 50)}...`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Login Failed: ${data.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network Error: ${error.message}`;
+            }
+        }
+
+        async function testInspectionStatus() {
+            const resultDiv = document.getElementById('inspectionStatusResult');
+            
+            if (!authToken) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '❌ Please login first';
+                return;
+            }
+
+            resultDiv.textContent = 'Testing inspection status...';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/inspections/6004/status', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Inspection Status Success!\n\n${JSON.stringify(data.data, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Inspection Status Failed: ${data.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network Error: ${error.message}`;
+            }
+        }
+
+        async function testFullInspection() {
+            const resultDiv = document.getElementById('fullInspectionResult');
+            
+            if (!authToken) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '❌ Please login first';
+                return;
+            }
+
+            resultDiv.textContent = 'Testing full inspection...';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/inspections/6004', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.className = 'result success';
+                    const inspection = data.data.inspection;
+                    resultDiv.textContent = `✅ Full Inspection Success!\n\nBooking: ${inspection.bookingNumber}\nRider: ${inspection.riderName}\nKilometers: ${inspection.kilometers}\nFuel: ${inspection.fuelLevel}\nPhotos: ${inspection.motorcyclePhotos?.length || 0}\nPDF: ${inspection.pdfUrl ? 'Available' : 'None'}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Full Inspection Failed: ${data.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html> 
