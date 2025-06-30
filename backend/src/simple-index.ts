@@ -1,6 +1,7 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
+import express from 'express';
+import { Request, Response } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
@@ -10,6 +11,10 @@ import { booqableService as importedBooqableService } from './services/booqableS
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+
+// WhipAround API constants
+const WHIP_AROUND_API_KEY = process.env.WHIP_AROUND_API_KEY || '7NOZCOiN4VzHaOi8gQPlxub8dQX0u87sP6uv0kzx9onks5A4tNrOQ20507tX7dqeyk5BhzjnPJfyl2sDoqtuj6BPOZZRur1kVTkuCtjHyf1E6kKozGxfrimS9l5ckcj2';
+const WHIP_AROUND_BASE_URL = process.env.WHIP_AROUND_API_URL || 'https://api.whip-around.com/api/public/v4';
 
 // Simple cache to avoid repeated API calls
 interface BookingCache {
@@ -111,7 +116,7 @@ function convertDateFormat(dateString: string): string {
   if (match) {
     const [, day, month, year] = match;
     // Convert to YYYY-MM-DD format
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    return `${year}-${month?.padStart(2, '0') || month}-${day?.padStart(2, '0') || day}`;
   }
   
   // If already in YYYY-MM-DD format or unrecognized format, return as is
@@ -161,7 +166,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Simple health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
@@ -175,7 +180,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Updated login endpoint with real Booqable integration
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
     console.log('🔐 Login attempt:', { 
       bookingNumber: req.body.bookingNumber?.substring(0, 3) + '***', 
@@ -1076,8 +1081,6 @@ app.post('/api/checkin/:bookingId/complete', async (req, res) => {
 });
 
 // WhipAround API integration
-const WHIP_AROUND_API_KEY = '7NOZCOiN4VzHaOi8gQPlxub8dQX0u87sP6uv0kzx9onks5A4tNrOQ20507tX7dqeyk5BhzjnPJfyl2sDoqtuj6BPOZZRur1kVTkuCtjHyf1E6kKozGxfrimS9l5ckcj2';
-const WHIP_AROUND_BASE_URL = 'https://api.whip-around.com/api/public/v4';
 
 // WhipAround inspection interfaces
 interface WhipAroundCard {
@@ -1375,44 +1378,61 @@ async function findInspectionByBookingNumber(bookingNumber: string): Promise<Whi
 
     console.log('🔍 Searching for inspection with booking number:', bookingNumber);
     
-    // Fetch all inspections
+    // Fetch all inspections (list endpoint)
     const inspections = await fetchWhipAroundInspections();
+    console.log(`📊 Found ${inspections.length} inspections to search through`);
     
-    // Find inspection that matches booking number
-    const matchingInspection = inspections.find(inspection => {
-      // Look for the "Order number" card to match booking
-      const orderCard = inspection.cards.find(card => 
-        card.name.toLowerCase().includes('order') && 
-        card.type === 'Data Entry Numeric'
-      );
-      
-      if (orderCard && orderCard.items.length > 0) {
-        const orderValue = orderCard.items[0].data_entry_value;
-        console.log('🔍 Found order value in inspection:', orderValue, 'comparing to:', bookingNumber);
-        return orderValue === bookingNumber;
+    // The list endpoint doesn't include full inspection data with cards
+    // We need to fetch each inspection individually to check the order number
+    // For efficiency, we'll fetch the most recent ones first
+    for (const inspectionSummary of inspections.slice(0, 20)) { // Check last 20 inspections
+      try {
+        console.log(`🔍 Checking inspection ID: ${inspectionSummary.id}`);
+        const fullInspection = await fetchWhipAroundInspectionById(inspectionSummary.id.toString());
+        
+        if (fullInspection && fullInspection.cards) {
+          // Look for the "Order number" card to match booking
+          const orderCard = fullInspection.cards.find(card => 
+            card.name.toLowerCase().includes('order') && 
+            card.type === 'Data Entry Numeric'
+          );
+          
+          if (orderCard && orderCard.items && orderCard.items.length > 0) {
+            const orderValue = orderCard.items[0].data_entry_value;
+            console.log(`📋 Order value: ${orderValue} vs booking: ${bookingNumber}`);
+            
+            if (orderValue === bookingNumber) {
+              console.log('✅ Found matching inspection!', {
+                id: fullInspection.id,
+                formName: fullInspection.form_name,
+                assetName: fullInspection.asset_name,
+                inspector: `${fullInspection.driver_first_name} ${fullInspection.driver_last_name}`
+              });
+              
+              // Cache the result
+              inspectionCache.set(bookingNumber, {
+                data: fullInspection,
+                timestamp: Date.now()
+              });
+              
+              return fullInspection;
+            }
+          }
+        }
+      } catch (err) {
+        console.log(`⚠️ Error fetching inspection ${inspectionSummary.id}:`, err);
+        continue;
       }
-      
-      return false;
-    });
+    }
 
-    // Cache the result
+    // Cache the negative result
     inspectionCache.set(bookingNumber, {
-      data: matchingInspection || null,
+      data: null,
       timestamp: Date.now()
     });
 
-    if (matchingInspection) {
-      console.log('✅ Found matching inspection:', {
-        id: matchingInspection.id,
-        formName: matchingInspection.form_name,
-        assetName: matchingInspection.asset_name,
-        inspector: `${matchingInspection.driver_first_name} ${matchingInspection.driver_last_name}`
-      });
-    } else {
-      console.log('❌ No matching inspection found for booking:', bookingNumber);
-    }
-
-    return matchingInspection || null;
+    console.log('❌ No matching inspection found for booking:', bookingNumber);
+    return null;
   } catch (error) {
     console.error('❌ Error finding inspection:', error);
     return null;
@@ -1529,15 +1549,17 @@ app.get('/api/inspections/:bookingId', async (req, res) => {
 
     let inspection: WhipAroundInspectionData | null = null;
 
-    // Special case: Use specific inspection ID for booking 6004
-    if (bookingId === '6004') {
-      console.log('🎯 Using specific inspection ID 62311244 for booking 6004');
-      inspection = await fetchWhipAroundInspectionById('62311244');
-    } else {
-      // Get booking number from bookingId (might need to extract from Booqable data)
+    // First try to find inspection by booking number in WhipAround
+    inspection = await findInspectionByBookingNumber(bookingId);
+    
+    // If not found by booking ID directly, try to get the booking from Booqable and use its number
+    if (!inspection) {
       const booking = await getCachedBooking(bookingId, ''); // We need the booking number
       const bookingNumber = booking?.number?.toString() || bookingId;
-      inspection = await findInspectionByBookingNumber(bookingNumber);
+      if (bookingNumber !== bookingId) {
+        console.log('🔍 Trying with Booqable booking number:', bookingNumber);
+        inspection = await findInspectionByBookingNumber(bookingNumber);
+      }
     }
     
     if (!inspection) {
@@ -1585,16 +1607,20 @@ app.get('/api/inspections/:bookingId/status', async (req, res) => {
 
     let inspection: WhipAroundInspectionData | null = null;
 
-    // Special case: Use specific inspection ID for booking 6004
-    if (bookingId === '6004') {
-      console.log('🎯 Using specific inspection ID 62311244 for booking 6004 status');
-      inspection = await fetchWhipAroundInspectionById('62311244');
-    } else {
-      // Get booking number
-      const booking = await getCachedBooking(bookingId, '');
+    // First try to find inspection by booking number in WhipAround
+    inspection = await findInspectionByBookingNumber(bookingId);
+    
+    // If not found by booking ID directly, try to get the booking from Booqable and use its number
+    if (!inspection) {
+      const booking = await getCachedBooking(bookingId, ''); // We need the booking number
       const bookingNumber = booking?.number?.toString() || bookingId;
-      inspection = await findInspectionByBookingNumber(bookingNumber);
+      if (bookingNumber !== bookingId) {
+        console.log('🔍 Trying with Booqable booking number:', bookingNumber);
+        inspection = await findInspectionByBookingNumber(bookingNumber);
+      }
     }
+    
+
     
     const inspectionStatus = {
       bookingId,
